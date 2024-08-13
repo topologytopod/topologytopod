@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  topologytopod:
+  - apiVersion: v2
+    appVersion: 0.0.1
+    created: "2024-08-13T10:51:04.299221993Z"
+    description: Copy Node topology to Pod
+    digest: 5c880e4cfdfce2d4230d4fdbe82081b95df6fa3c884f2b44e7e37632a60df7e3
+    name: topologytopod
+    type: application
+    urls:
+    - https://github.com/topologytopod/topologytopod/releases/download/topologytopod-0.0.2/topologytopod-0.0.2.tgz
+    version: 0.0.2
+generated: "2024-08-13T10:51:04.299234146Z"
