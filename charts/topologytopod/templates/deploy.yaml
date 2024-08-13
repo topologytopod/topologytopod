@@ -1,0 +1,122 @@
+{{- $namespace := .Release.Namespace -}}
+{{- $ca := genCA "topologytopod.io" 36500 -}}
+
+{{- $dns1 := printf "%s.%s" "topologytopod" .Release.Namespace -}}
+{{- $dns2 := printf "%s.%s.svc" "topologytopod" .Release.Namespace -}}
+{{- $dns3 := printf "%s.%s.svc.%s" "topologytopod" .Release.Namespace "cluster.local" -}}
+{{- $dns := list -}}
+{{- $dns = prepend $dns $dns1 -}}
+{{- $dns = prepend $dns $dns2 -}}
+{{- $dns = prepend $dns $dns3 -}}
+
+{{- $cert := genSignedCert "topologytopod.io" (list) $dns 36500 $ca -}}
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: topologytopod
+  namespace: {{ .Release.Namespace }}
+data:
+  ca.crt: {{ $ca.Cert | b64enc }}
+  tls.crt: {{ $cert.Cert | b64enc }}
+  tls.key: {{ $cert.Key  | b64enc }}
+type: kubernetes.io/tls
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: topologytopod
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: topologytopod
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: topologytopod
+subjects:
+  - kind: ServiceAccount
+    name: topologytopod
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: topologytopod
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: topologytopod
+  namespace: {{ .Release.Namespace }}
+webhooks:
+  - name: topologytopod.topologytopod.io
+    clientConfig:
+      service:
+        name: topologytopod
+        namespace: {{ .Release.Namespace }}
+        path: "/mutate"
+        port: 443
+      caBundle: {{ $ca.Cert | b64enc }}
+    rules:
+      - operations: ["CREATE", "UPDATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods", "pods/binding"]
+        scope: '*'
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: topologytopod
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - port: 443
+      targetPort: 443
+  selector:
+    app: topologytopod
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: topologytopod
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: topologytopod
+  template:
+    metadata:
+      labels:
+        app: topologytopod
+    spec:
+      serviceAccountName: topologytopod
+      containers:
+        - name: webhook-server
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          command:
+            - /usr/bin/app
+          ports:
+            - containerPort: 443
+          volumeMounts:
+            - name: webhook-cert
+              mountPath: /etc/webhook/certs
+              readOnly: true
+      volumes:
+        - name: webhook-cert
+          secret:
+            secretName: topologytopod

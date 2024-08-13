@@ -1,0 +1,3 @@
+image:
+  repository: ghcr.io/topologytopod/topologytopod
+  tag: "v0.0.1"
