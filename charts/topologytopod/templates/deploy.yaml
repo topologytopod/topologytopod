@@ -61,6 +61,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 webhooks:
   - name: topologytopod.topologytopod.io
+    failurePolicy: Ignore
     clientConfig:
       service:
         name: topologytopod
